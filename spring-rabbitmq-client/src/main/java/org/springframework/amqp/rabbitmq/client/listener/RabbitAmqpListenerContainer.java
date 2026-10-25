@@ -58,6 +58,7 @@ import org.springframework.util.ObjectUtils;
  * A listener container for RabbitMQ AMQP 1.0 Consumer.
  *
  * @author Artem Bilan
+ * @author Ngoc Nhan
  *
  * @since 4.0
  *
@@ -121,6 +122,8 @@ public class RabbitAmqpListenerContainer
 	private @Nullable TaskScheduler taskScheduler;
 
 	private boolean internalTaskScheduler = true;
+
+	private long delayedRetryInterval;
 
 	/**
 	 * Construct an instance based on the provided {@link AmqpConnectionFactory}.
@@ -288,6 +291,16 @@ public class RabbitAmqpListenerContainer
 	}
 
 	/**
+	 * Set the delay before retrying a message.
+	 * @param delayedRetryInterval the delay in milliseconds, values less than
+	 * or equal to 0 disable delayed retry
+	 * @since 4.2
+	 */
+	public void setDelayedRetryInterval(long delayedRetryInterval) {
+		this.delayedRetryInterval = delayedRetryInterval;
+	}
+
+	/**
 	 * The 'id' attribute of the listener.
 	 * @return the id (or the container bean name if no id set).
 	 */
@@ -439,7 +452,7 @@ public class RabbitAmqpListenerContainer
 		catch (Exception rethrow) {
 			if (!handleSpecialErrors(rethrow, context)) {
 				if (this.defaultRequeue) {
-					context.requeue();
+					this.requeueWithDelay(context);
 				}
 				else {
 					context.discard();
@@ -459,7 +472,7 @@ public class RabbitAmqpListenerContainer
 			return true;
 		}
 		if (ContainerUtils.shouldRequeue(this.defaultRequeue, ex, LOG.getLog())) {
-			context.requeue();
+			this.requeueWithDelay(context);
 			return true;
 		}
 		if (ContainerUtils.isAmqpReject(ex)) {
@@ -471,6 +484,17 @@ public class RabbitAmqpListenerContainer
 			return true;
 		}
 		return false;
+	}
+
+	private void requeueWithDelay(Consumer.Context context) {
+
+		if (this.delayedRetryInterval > 0) {
+			context.delayedRetry(Instant.now().plusMillis(this.delayedRetryInterval));
+		}
+		else {
+			context.requeue();
+		}
+
 	}
 
 	private void publishConsumerFailedEvent(@Nullable String reason, boolean fatal, @Nullable Throwable t) {

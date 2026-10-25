@@ -87,6 +87,7 @@ import org.springframework.validation.Validator;
  * @author Ngoc Nhan
  * @author Martin Ferret
  * @author Burak Kalayci
+ * @author Ngoc Nhan
  *
  * @since 1.4
  *
@@ -327,6 +328,8 @@ public class RabbitListenerAnnotationBeanPostProcessor
 		if (batchReceiveTimeout != null) {
 			endpoint.setBatchReceiveTimeout(batchReceiveTimeout);
 		}
+		Long delayedRetryInterval = resolveExpressionToLong(rabbitListener.delayedRetryInterval(), "delayedRetryInterval");
+		endpoint.setDelayedRetryInterval(delayedRetryInterval);
 		RabbitListenerContainerFactory<?> factory = resolveContainerFactory(rabbitListener, target, beanName);
 
 		this.registrar.registerEndpoint(endpoint, factory);

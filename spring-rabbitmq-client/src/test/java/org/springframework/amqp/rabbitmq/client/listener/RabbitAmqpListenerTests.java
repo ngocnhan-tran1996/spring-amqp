@@ -4,6 +4,7 @@
 
 package org.springframework.amqp.rabbitmq.client.listener;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import com.rabbitmq.client.amqp.Consumer;
@@ -54,6 +56,7 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * @author Artem Bilan
+ * @author Ngoc Nhan
  *
  * @since 4.0
  */
@@ -206,6 +209,22 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 		assertThat(container.isRunning()).isTrue();
 
 		container.stop();
+	}
+
+	@Test
+	void shouldDelayRedelivery(@Autowired DelayedRetryIntervalService delayedRetryIntervalService) throws Exception {
+
+		// @formatter:off
+		RABBITMQ.execInContainer(
+				"rabbitmqctl", "set_policy", "qq-delayed-retry",
+				"delayedQueue",
+				"{\"delayed-retry-type\": \"all\", \"delayed-retry-min\": 1000, \"delayed-retry-max\": 3000}",
+				"--priority", "10",
+				"--apply-to", "quorum_queues");
+		// @formatter:on
+		this.template.convertAndSend("delayedQueue", "message");
+		await().atMost(Duration.ofSeconds(5))
+				.untilAsserted(() -> assertThat(delayedRetryIntervalService.retryCount).hasValue(3));
 	}
 
 	@Configuration
@@ -364,6 +383,11 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 			return new NoSuchMethodService();
 		}
 
+		@Bean
+		DelayedRetryIntervalService delayedRetryIntervalService() {
+			return new DelayedRetryIntervalService();
+		}
+
 	}
 
 	@RabbitListener(id = "no.such.method", queues = "no.such.method",
@@ -380,6 +404,22 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 		@Override
 		public void onApplicationEvent(ListenerContainerConsumerFailedEvent event) {
 			this.eventLatch.countDown();
+		}
+
+	}
+
+	static class DelayedRetryIntervalService {
+
+		AtomicInteger retryCount = new AtomicInteger(0);
+
+		@RabbitListener(
+				queuesToDeclare = @org.springframework.amqp.rabbit.annotation.Queue(
+						value = "delayedQueue",
+						arguments = @org.springframework.amqp.rabbit.annotation.Argument(name = "x-queue-type", value = "quorum")),
+				delayedRetryInterval = "1500")
+		void listen(String message) {
+			retryCount.getAndIncrement();
+			throw new RuntimeException("delayed exception");
 		}
 
 	}

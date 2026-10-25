@@ -90,6 +90,8 @@ public abstract class AbstractRabbitListenerEndpoint implements RabbitListenerEn
 
 	private @Nullable String replyContentType;
 
+	private @Nullable Long delayedRetryInterval;
+
 	private boolean converterWinsContentType = true;
 
 	@Override
@@ -406,6 +408,16 @@ public abstract class AbstractRabbitListenerEndpoint implements RabbitListenerEn
 	 */
 	public void setConverterWinsContentType(boolean converterWinsContentType) {
 		this.converterWinsContentType = converterWinsContentType;
+	}
+
+	@Override
+	public @Nullable Long getDelayedRetryInterval() {
+		return this.delayedRetryInterval;
+	}
+
+	@Override
+	public void setDelayedRetryInterval(@Nullable Long delayedRetryInterval) {
+		this.delayedRetryInterval = delayedRetryInterval;
 	}
 
 	@Override

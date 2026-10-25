@@ -55,6 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Alex Panchenko
  * @author Martin Ferret
  * @author Burak Kalayci
+ * @author Ngoc Nhan
  */
 public class RabbitListenerAnnotationBeanPostProcessorTests {
 
@@ -377,6 +378,18 @@ public class RabbitListenerAnnotationBeanPostProcessorTests {
 				.isEqualTo("customFactory");
 	}
 
+	@Test
+	public void configDelayedRetryInterval() {
+		try (ConfigurableApplicationContext context = new AnnotationConfigApplicationContext(
+				getConfigClass(), DelayedRetryIntervalTestBean.class)) {
+
+			RabbitListenerContainerTestFactory factory = context.getBean(RabbitListenerContainerTestFactory.class);
+
+			RabbitListenerEndpoint endpoint = factory.getListenerContainers().get(0).getEndpoint();
+			assertThat(endpoint.getDelayedRetryInterval()).isEqualTo(1500);
+		}
+	}
+
 	static class BeanForConcurrencyTesting {
 		public void a() {
 		}
@@ -575,6 +588,15 @@ public class RabbitListenerAnnotationBeanPostProcessorTests {
 		@Bean
 		public Queue mySecondQueue() {
 			return new Queue("secondQueue");
+		}
+
+	}
+
+	@Component
+	static class DelayedRetryIntervalTestBean {
+
+		@RabbitListener(queues = "delayed-queue", delayedRetryInterval = "1500")
+		public void handleName(String body) {
 		}
 
 	}
