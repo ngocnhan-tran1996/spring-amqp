@@ -271,3 +271,25 @@ public void rePublish(Message message) {
     }
 }
 ----
+
+
+[[quorum-queue-delayed-retry]]
+NOTE: https://www.rabbitmq.com/blog/2026/04/23/rabbitmq-4.3-release#delayed-retries[RabbitMQ 4.3] and later supports configurable delayed retry with linear back-off for quorum queues.
+Since Spring AMQP 4.2, the `delayedRetryInterval` attribute on `@RabbitListener` allows configuring a delay for each retry by setting the AMQP 1.0 `x-opt-delivery-time` message annotation.
+This provides per-message delayed redelivery and complements RabbitMy's broker-side delayed retry policy.
+See the https://www.rabbitmq.com/docs/4.3/quorum-queues#delayed-retry[Quorum Queue Delayed Retry] documentation for more details.
+
+The following example shows how to do so:
+
+[source,java]
+----
+@RabbitListener(queues = "delayed_quorum_queue", delayedRetryInterval = "1500")
+void listen(String message) {
+    if (retryCount.getAndIncrement() < 3) {
+        throw new RuntimeException(message);
+    }
+    else {
+        throw new ImmediateAcknowledgeAmqpException("Failed after 4 attempts");
+    }
+}
+----

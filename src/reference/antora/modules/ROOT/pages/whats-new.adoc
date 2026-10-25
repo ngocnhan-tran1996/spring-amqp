@@ -5,6 +5,13 @@
 [[changes-in-4-2-since-4-1]]
 == Changes in 4.2 Since 4.1
 
+[[x42-delayed-retry-interval]]
+=== Add `delayedRetryInterval` to `@RabbitListener`
+
+The `delayedRetryInterval` attribute allows specifying a delay before a message is redelivered after a listener failure by setting the AMQP 1.0 `x-opt-delivery-time` annotation.
+
+See xref:amqp/resilience-recovering-from-errors-and-broker-failures.adoc#quorum-queue-delayed-retry[Quorum Queue Delayed Retry] for more information.
+
 [[x42-tls-hostname-verification]]
 === TLS Hostname Verification
 

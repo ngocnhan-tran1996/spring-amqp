@@ -11,6 +11,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import com.rabbitmq.client.amqp.Consumer;
@@ -18,6 +19,7 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
+import org.springframework.amqp.ImmediateAcknowledgeAmqpException;
 import org.springframework.amqp.core.AmqpAcknowledgment;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -27,6 +29,7 @@ import org.springframework.amqp.core.MessageListenerContainer;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.listener.ConditionalRejectingErrorHandler;
+import org.springframework.amqp.rabbit.annotation.Argument;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -54,6 +57,7 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * @author Artem Bilan
+ * @author Ngoc Nhan
  *
  * @since 4.0
  */
@@ -206,6 +210,22 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 		assertThat(container.isRunning()).isTrue();
 
 		container.stop();
+	}
+
+	@Test
+	void shouldDelayRedelivery(@Autowired DelayedRetryIntervalService delayedRetryIntervalService) throws Exception {
+
+		// @formatter:off
+		RABBITMQ.execInContainer(
+				"rabbitmqctl", "set_policy", "qq-delayed-retry",
+				"delayedQueue",
+				"{\"delayed-retry-type\": \"all\", \"delayed-retry-min\": 1000, \"delayed-retry-max\": 3000}",
+				"--priority", "10",
+				"--apply-to", "quorum_queues");
+		// @formatter:on
+		this.template.convertAndSend("delayedQueue", "message");
+		await().atMost(5, TimeUnit.SECONDS)
+				.untilAsserted(() -> assertThat(delayedRetryIntervalService.retryCount).hasValue(3));
 	}
 
 	@Configuration
@@ -364,6 +384,11 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 			return new NoSuchMethodService();
 		}
 
+		@Bean
+		DelayedRetryIntervalService delayedRetryIntervalService() {
+			return new DelayedRetryIntervalService();
+		}
+
 	}
 
 	@RabbitListener(id = "no.such.method", queues = "no.such.method",
@@ -380,6 +405,26 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 		@Override
 		public void onApplicationEvent(ListenerContainerConsumerFailedEvent event) {
 			this.eventLatch.countDown();
+		}
+
+	}
+
+	static class DelayedRetryIntervalService {
+
+		AtomicInteger retryCount = new AtomicInteger(0);
+
+		@RabbitListener(
+				queuesToDeclare = @org.springframework.amqp.rabbit.annotation.Queue(
+						value = "delayedQueue",
+						arguments = @Argument(name = "x-queue-type", value = "quorum")),
+				delayedRetryInterval = "1000")
+		void listen(String message) {
+			if (retryCount.getAndIncrement() < 3) {
+				throw new RuntimeException(message);
+			}
+			else {
+				throw new ImmediateAcknowledgeAmqpException("Failed after 4 attempts");
+			}
 		}
 
 	}

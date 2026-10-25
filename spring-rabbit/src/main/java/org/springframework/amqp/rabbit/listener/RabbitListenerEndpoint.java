@@ -21,6 +21,7 @@ import org.springframework.core.task.TaskExecutor;
  * @author Stephane Nicoll
  * @author Gary Russell
  * @author Martin Ferret
+ * @author Ngoc Nhan
  * @since 1.4
  */
 public interface RabbitListenerEndpoint {
@@ -192,6 +193,34 @@ public interface RabbitListenerEndpoint {
 	 */
 	default boolean isConverterWinsContentType() {
 		return true;
+	}
+
+	/**
+	 * Return the delay before retrying a message.
+	 *
+	 * <p>
+	 * <b>Only quorum queues support the modification of message annotations
+	 * with the <code>modified</code> outcome.</b>
+	 *
+	 * @return the delay in milliseconds
+	 * @since 4.2
+	 */
+	default @Nullable Long getDelayedRetryInterval() {
+		return null;
+	}
+
+	/**
+	 * Set the delay before retrying a message.
+	 *
+	 * <p>
+	 * <b>Only quorum queues support the modification of message annotations
+	 * with the <code>modified</code> outcome.</b>
+	 *
+	 * @param delayedRetryInterval the delay in milliseconds, values less than
+	 * or equal to 0 disable delayed retry
+	 * @since 4.2
+	 */
+	default void setDelayedRetryInterval(@Nullable Long delayedRetryInterval) {
 	}
 
 }

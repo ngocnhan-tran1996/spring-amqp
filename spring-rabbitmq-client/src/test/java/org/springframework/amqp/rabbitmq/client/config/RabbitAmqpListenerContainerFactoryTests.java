@@ -22,6 +22,7 @@ import static org.mockito.Mockito.mock;
 
 /**
  * @author Martin Ferret
+ * @author Ngoc Nhan
  *
  * @since 4.2
  */
@@ -69,6 +70,15 @@ public class RabbitAmqpListenerContainerFactoryTests {
 
 		assertThat(endpoint.getBatchListener()).isTrue();
 		assertThat(TestUtils.<Integer>getPropertyValue(container, "batchSize")).isEqualTo(5);
+	}
+
+	@Test
+	void configDelayedRetryInterval() {
+		MethodRabbitListenerEndpoint endpoint = createEndpoint();
+		endpoint.setDelayedRetryInterval(1500L);
+
+		RabbitAmqpListenerContainer container = this.factory.createListenerContainer(endpoint);
+		assertThat(TestUtils.<Long>getPropertyValue(container, "delayedRetryInterval")).isEqualTo(1500L);
 	}
 
 	private static MethodRabbitListenerEndpoint createEndpoint() {

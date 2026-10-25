@@ -84,6 +84,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
  * @author Stephane Nicoll
  * @author Gary Russell
  * @author Martin Ferret
+ * @author Ngoc Nhan
  * @since 1.4
  * @see EnableRabbit
  * @see RabbitListenerAnnotationBeanPostProcessor
@@ -342,7 +343,7 @@ public @interface RabbitListener {
 	 * does not enable {@code consumerBatchEnabled}, which stays a container factory
 	 * property - refer to the reference documentation.
 	 * @return the batch size for this listener. If not set, the container factory setting
-	 * is used. SpEL {@code #{...}} and property place holders {@code ${...}} are
+	 * is used. SpEL {@code #{...}} and property placeholders {@code ${...}} are
 	 * supported.
 	 * @since 4.2
 	 * @see #batchReceiveTimeout()
@@ -355,11 +356,25 @@ public @interface RabbitListener {
 	 * released. Ignored by container factories that have no such property, such as the
 	 * {@code DirectRabbitListenerContainerFactory}.
 	 * @return the batch receive timeout for this listener. If not set, the container
-	 * factory setting is used. SpEL {@code #{...}} and property place holders
+	 * factory setting is used. SpEL {@code #{...}} and property placeholders
 	 * {@code ${...}} are supported.
 	 * @since 4.2
 	 * @see #batchSize()
 	 */
 	String batchReceiveTimeout() default "";
+
+	/**
+	 * The delay before retrying a message.
+	 *
+	 * <p>
+	 * <b>Only quorum queues support the modification of message annotations
+	 * with the <code>modified</code> outcome.</b>
+	 *
+	 * @return the delay in milliseconds, values less than or equal to 0 disable
+	 * delayed retry. SpEL {@code #{...}} and property placeholders
+	 * {@code ${...}} are supported.
+	 * @since 4.2
+	 */
+	String delayedRetryInterval() default "";
 
 }

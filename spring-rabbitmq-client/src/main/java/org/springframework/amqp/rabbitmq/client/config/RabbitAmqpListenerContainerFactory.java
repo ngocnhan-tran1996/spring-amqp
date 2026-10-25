@@ -31,6 +31,7 @@ import org.springframework.util.ErrorHandler;
  *
  * @author Artem Bilan
  * @author Martin Ferret
+ * @author Ngoc Nhan
  *
  * @since 4.0
  *
@@ -187,7 +188,8 @@ public class RabbitAmqpListenerContainerFactory
 					.acceptIfNotNull(endpoint.getAckMode(),
 							(ackMode) -> container.setAutoSettle(!ackMode.isManual()))
 					.acceptIfNotNull(endpoint.getConcurrency(),
-							(concurrency) -> container.setConsumersPerQueue(Integer.parseInt(concurrency)));
+							(concurrency) -> container.setConsumersPerQueue(Integer.parseInt(concurrency)))
+					.acceptIfNotNull(endpoint.getDelayedRetryInterval(), container::setDelayedRetryInterval);
 		}
 		if (this.containerCustomizer != null) {
 			this.containerCustomizer.configure(container);
