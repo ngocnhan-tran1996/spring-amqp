@@ -7,6 +7,7 @@ package org.springframework.amqp.rabbitmq.client.listener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import com.rabbitmq.client.amqp.Consumer;
+import com.rabbitmq.qpid.protonj2.types.Symbol;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -27,6 +29,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.core.MessageListenerContainer;
 import org.springframework.amqp.core.MessagePostProcessor;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.QueueInformation;
@@ -60,6 +63,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * @author Artem Bilan
  * @author Sharang Gupta
+ * @author Ngoc Nhan
  *
  * @since 4.0
  */
@@ -110,6 +114,31 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 
 		assertThat(this.template.receive("dlq1")).succeedsWithin(20, TimeUnit.SECONDS);
 		assertThat(this.template.receive("dlq1")).succeedsWithin(20, TimeUnit.SECONDS);
+	}
+
+	@Test
+	void shouldPopulateDeathHeadersWhenMessageIsRejected() throws InterruptedException {
+
+		this.template.convertAndSend("q5", "q5-message");
+		assertThat(this.template.receive("dlq1")).succeedsWithin(20, TimeUnit.SECONDS)
+				.satisfies(message -> {
+
+					MessageProperties messageProperties = message.getMessageProperties();
+					assertThat(messageProperties).isNotNull();
+					assertThat(messageProperties.<String>getHeader("x-first-death-queue")).isEqualTo("q5");
+					assertThat(messageProperties.<String>getHeader("x-first-death-reason")).isEqualTo("rejected");
+					assertThat(messageProperties.<String>getHeader("x-first-death-exchange")).isEmpty();
+					assertThat(messageProperties.<String>getHeader("x-last-death-queue")).isEqualTo("q5");
+					assertThat(messageProperties.<String>getHeader("x-last-death-reason")).isEqualTo("rejected");
+					assertThat(messageProperties.<String>getHeader("x-last-death-exchange")).isEmpty();
+					assertThat(messageProperties.getConsumerQueue()).isEqualTo("dlq1");
+
+					List<Map<String, ?>> xDeaths = messageProperties.getXDeathHeader();
+					assertThat(xDeaths).isNotEmpty();
+					assertThat(xDeaths.get(0).get("queue")).isEqualTo("q5");
+					assertThat(xDeaths.get(0).get("reason")).isEqualTo(Symbol.valueOf("rejected"));
+					assertThat((String) xDeaths.get(0).get("exchange")).isEmpty();
+				});
 	}
 
 	@Test
@@ -345,6 +374,11 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 		}
 
 		@Bean
+		Queue q5() {
+			return QueueBuilder.durable("q5").deadLetterExchange("dlx1").build();
+		}
+
+		@Bean
 		MessageConverter testMessageConverter() {
 			return new SimpleMessageConverter();
 		}
@@ -386,6 +420,17 @@ class RabbitAmqpListenerTests extends RabbitAmqpTestBase {
 			}
 			finally {
 				this.consumeIsDone.countDown();
+			}
+		}
+
+		@RabbitListener(queues = "q5",
+				ackMode = "#{T(org.springframework.amqp.core.AcknowledgeMode).MANUAL}")
+		void processQ5Data(String data, AmqpAcknowledgment acknowledgment) {
+			if (!this.received.contains(data)) {
+				acknowledgment.acknowledge(AmqpAcknowledgment.Status.REJECT);
+			}
+			else {
+				acknowledgment.acknowledge();
 			}
 		}
 
